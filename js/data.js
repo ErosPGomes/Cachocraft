@@ -56,7 +56,26 @@ const ITEMS = {
   chiclete:  { name: 'Chiclete com xilitol', toxic: true, dmg: 40, fact: 'Xilitol derruba a glicose do cão e pode lesar o fígado.' },
 };
 
+ITEMS.osso = { name: 'Osso' };
+ITEMS.kit_casinha = { name: 'Kit casinha de cachorro' };
+
 const isEdible = id => !!(ITEMS[id] && (ITEMS[id].safe || ITEMS[id].toxic));
+
+// Receitas de Cachocraft (ingredientes → resultado). Chaves de bloco vêm de js/world.js.
+const RECIPES = [
+  { out: 'tabuas', n: 4, need: { tronco: 1 } },
+  { out: 'graveto', n: 4, need: { tabuas: 1 } },
+  { out: 'palha', n: 1, need: { capim: 4 } },
+  { out: 'racao', n: 3, need: { palha: 1, osso: 1 } },
+  { out: 'petisco', n: 2, need: { osso: 1, cenoura: 1 } },
+  { out: 'bloco_racao', n: 1, need: { racao: 4 } },
+  { out: 'bloco_osso', n: 1, need: { osso: 4 } },
+  { out: 'vidro', n: 1, need: { areia: 2 } },
+  { out: 'telhas', n: 4, need: { terra: 2, areia: 1 } },
+  { out: 'parede', n: 4, need: { pedregulho: 2, areia: 1 } },
+  { out: 'pelucia', n: 2, need: { palha: 1, flor_vermelha: 1 } },
+  { out: 'kit_casinha', n: 1, need: { tabuas: 10, telhas: 6 } },
+];
 
 const SPAWN_WEIGHTS = {
   petisco: 2, cenoura: 3, maca: 2,

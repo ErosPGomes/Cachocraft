@@ -200,6 +200,12 @@ const Draw = (() => {
         bone(ctx, 0, -5, 8, 2, '#efe2c4', -0.2);
         break;
       case 'petisco': bone(ctx, 0, 0, 13, 3.2, '#d9a066', 0.15); break;
+      case 'osso': bone(ctx, 0, 0, 15, 3.4, '#f3ead7', -0.5); break;
+      case 'kit_casinha':
+        rrect(ctx, -9, -4, 18, 13, 1, '#c07a3e');
+        poly(ctx, [-12, -3, 0, -12, 12, -3], '#c8432f');
+        rrect(ctx, -3, 1, 6, 8, 2, '#3b2416');
+        break;
       case 'cenoura':
         poly(ctx, [-11, 1, 7, -3.5, 7, 3.5], '#f08a24');
         ctx.strokeStyle = '#c96a12'; ctx.lineWidth = 1;

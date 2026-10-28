@@ -4,11 +4,13 @@ O jogo para quem é apaixonado por cachorro. Você é um cachorro e cuida do seu
 
 E tem uma regra de ouro: **o que faz mal para um cachorro na vida real também faz mal no jogo.** Comeu chocolate? Perde vida.
 
+> **Versão 3D (mundo de blocos)** na raiz. A versão 2D original continua jogável em [`classico/`](classico/).
+
+Na 3D você cava (segure o clique esquerdo), coloca blocos (clique direito), cria itens no inventário (`I`) com receitas próprias, como palha + osso → ração, e constrói. O motor de blocos foi adaptado do repositório [animation](https://github.com/ErosPGomes/animation). Use `Espaço` para pular e `V` para trocar a distância da câmera.
+
 ## Como jogar
 
-Abra o `index.html` no navegador. Não precisa instalar nada.
-
-Se preferir rodar com servidor local:
+A versão 3D usa módulos ES, então precisa de um servidor local (a 2D em `classico/` abre direto):
 
 ```bash
 python -m http.server 8123

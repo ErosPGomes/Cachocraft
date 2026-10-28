@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cachocraft</title>
-  <meta name="description" content="Cachocraft: o jogo para quem é apaixonado por cachorro.">
+  <meta name="description" content="Cachocraft: mundo de blocos para quem é apaixonado por cachorro.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -12,76 +12,118 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐶</text></svg>">
 </head>
 <body>
-  <div id="app">
-    <header class="topbar">
-      <h1 class="logo"><span class="logo-bone">🦴</span>Cacho<span>craft</span></h1>
-      <div class="top-actions">
-        <div class="coins" title="Ossinhos (moeda do jogo)">🦴 <b id="coins">0</b></div>
-        <button id="btnWardrobe" class="btn">Guarda-roupa <kbd>C</kbd></button>
-        <button id="btnHelp" class="btn ghost" title="Como jogar">?</button>
-        <button id="btnMute" class="btn ghost">🔊</button>
+  <canvas id="game" aria-label="Mundo de Cachocraft"></canvas>
+
+  <div id="hud">
+    <section id="stats" class="glass">
+      <h2>Você</h2>
+      <div class="bar hp" data-bar="p-hp"><label>Vida</label><div><i></i></div></div>
+      <div class="bar food" data-bar="p-hunger"><label>Fome</label><div><i></i></div></div>
+      <div class="bar water" data-bar="p-thirst"><label>Sede</label><div><i></i></div></div>
+      <h2><span data-dogname>Paçoca</span> <small id="dogMood">tranquilo</small></h2>
+      <div class="bar hp" data-bar="d-health"><label>Saúde</label><div><i></i></div></div>
+      <div class="bar food" data-bar="d-hunger"><label>Fome</label><div><i></i></div></div>
+      <div class="bar water" data-bar="d-thirst"><label>Sede</label><div><i></i></div></div>
+      <div class="bar joy" data-bar="d-happy"><label>Alegria</label><div><i></i></div></div>
+    </section>
+
+    <div id="topRight">
+      <div class="pill" id="clock" title="Hora do dia">☀️ dia</div>
+      <div class="pill coins" title="Ossinhos (moeda do jogo)">🦴 <b id="coins">0</b></div>
+      <button class="btn" id="btnInv">Inventário <kbd>I</kbd></button>
+      <button class="btn" id="btnWardrobe">Guarda-roupa <kbd>C</kbd></button>
+      <button class="btn ghost" id="btnHelp" title="Como jogar">?</button>
+      <button class="btn ghost" id="btnMute">🔊</button>
+    </div>
+
+    <div id="crosshair"><div id="mineRing"></div></div>
+    <div id="prompt"></div>
+
+    <div id="hotbarWrap">
+      <div id="heldLabel"></div>
+      <div id="hotbar"></div>
+    </div>
+
+    <div id="chat">
+      <div id="chatLog"></div>
+      <div id="chatBox">
+        <div class="quick">
+          <button data-say="Senta!">Senta</button>
+          <button data-say="Deita!">Deita</button>
+          <button data-say="Dá a pata!">Pata</button>
+          <button data-say="Vem aqui!">Vem</button>
+          <button data-say="Fica!">Fica</button>
+          <button data-say="Me segue!">Segue</button>
+          <button data-say="Busca o graveto!">Busca</button>
+          <button data-say="Larga!" class="stop">Larga!</button>
+        </div>
+        <form id="chatForm" autocomplete="off">
+          <input id="chatInput" maxlength="140" placeholder="Fale com Paçoca…">
+        </form>
       </div>
-    </header>
+      <div id="chatHint"><kbd>Enter</kbd> conversar com <span data-dogname>Paçoca</span></div>
+    </div>
 
-    <main>
-      <div id="stage">
-        <canvas id="game" aria-label="Mundo de Cachocraft"></canvas>
-        <div id="toasts" aria-live="polite"></div>
+    <div id="toasts" aria-live="polite"></div>
+    <div id="labels"></div>
+  </div>
+
+  <div id="lock" class="overlay">
+    <div class="lock-card">
+      <h1 class="logo">Cacho<span>craft</span></h1>
+      <p class="tag">Um mundo de blocos para quem ama cachorro. Cave, construa e cuide de <b data-dogname>Paçoca</b>.</p>
+      <button class="btn big" id="btnPlay">Clique para jogar</button>
+      <div class="help-grid">
+        <div>
+          <h3>Controles</h3>
+          <ul class="keys">
+            <li><kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular</li>
+            <li><kbd>Mouse</kbd> olhar · <kbd>Clique esq.</kbd> segurar para cavar</li>
+            <li><kbd>Clique dir.</kbd> colocar bloco ou jogar item</li>
+            <li><kbd>E</kbd> usar / carinho · <kbd>R</kbd> comer · <kbd>Q</kbd> soltar</li>
+            <li><kbd>1</kbd>–<kbd>9</kbd> / rodinha · trocar item</li>
+            <li><kbd>I</kbd> inventário e criação · <kbd>C</kbd> guarda-roupa · <kbd>Enter</kbd> conversar</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Cuidar de <span data-dogname>Paçoca</span></h3>
+          <ul>
+            <li>Jogue um <b>graveto</b> (clique direito): ele busca!</li>
+            <li>Pegue a jarra na <b>torneira</b> e encha o potinho azul.</li>
+            <li>Pegue <b>ração de osso e palha</b> no saco e encha o potinho vermelho.</li>
+            <li>Chocolate, uva, cebola, biscoito, café, abacate e xilitol <b>fazem mal</b>, como na vida real.</li>
+            <li>Se ele for comer algo perigoso, diga <b>"larga!"</b>.</li>
+          </ul>
+        </div>
       </div>
+      <p class="small">Prefere a versão 2D? <a href="classico/">Jogar o Cachocraft clássico</a></p>
+    </div>
+  </div>
 
-      <aside id="panel">
-        <section class="card held">
-          <canvas id="heldIcon" width="56" height="56"></canvas>
-          <div class="held-info">
-            <b id="heldName">Nada na boca</b>
-            <small id="heldHint">Chegue perto de algo e aperte E</small>
-          </div>
-          <div class="held-btns">
-            <button id="btnInteract" class="mini" title="Pegar / usar (E)">E</button>
-            <button id="btnEat" class="mini" title="Comer / beber (R)" disabled>R</button>
-            <button id="btnDrop" class="mini" title="Soltar (Q)" disabled>Q</button>
-          </div>
-        </section>
-
-        <section class="card stats">
-          <h2>Você</h2>
-          <div class="bar hp" data-bar="p-hp"><label>Vida</label><div><i></i></div><span>100</span></div>
-          <div class="bar food" data-bar="p-hunger"><label>Fome</label><div><i></i></div><span>100</span></div>
-          <div class="bar water" data-bar="p-thirst"><label>Sede</label><div><i></i></div><span>100</span></div>
-          <h2><span data-dogname>Paçoca</span> <small id="dogMood">tranquilo</small></h2>
-          <div class="bar hp" data-bar="d-health"><label>Saúde</label><div><i></i></div><span>100</span></div>
-          <div class="bar food" data-bar="d-hunger"><label>Fome</label><div><i></i></div><span>100</span></div>
-          <div class="bar water" data-bar="d-thirst"><label>Sede</label><div><i></i></div><span>100</span></div>
-          <div class="bar joy" data-bar="d-happy"><label>Alegria</label><div><i></i></div><span>100</span></div>
-        </section>
-
-        <section class="card chat">
-          <h2>Conversar com <span data-dogname>Paçoca</span></h2>
-          <div id="chatLog"></div>
-          <div class="quick">
-            <button data-say="Senta!">Senta</button>
-            <button data-say="Deita!">Deita</button>
-            <button data-say="Dá a pata!">Pata</button>
-            <button data-say="Vem aqui!">Vem</button>
-            <button data-say="Fica!">Fica</button>
-            <button data-say="Me segue!">Segue</button>
-            <button data-say="Busca o graveto!">Busca</button>
-            <button data-say="Larga!" class="stop">Larga!</button>
-          </div>
-          <form id="chatForm" autocomplete="off">
-            <input id="chatInput" maxlength="140" placeholder="Fale com Paçoca… (Enter)">
-            <button class="btn">Falar</button>
-          </form>
-        </section>
-      </aside>
-    </main>
+  <div class="modal" id="inventory" hidden>
+    <div class="modal-card inv-card" role="dialog" aria-labelledby="invTitle">
+      <header>
+        <h2 id="invTitle">Inventário</h2>
+        <button class="x" data-close aria-label="Fechar">×</button>
+      </header>
+      <div class="inv-body">
+        <div>
+          <p class="hint">Clique em um item e depois em outro espaço para trocar de lugar. A primeira linha é a sua barra.</p>
+          <div id="invGrid"></div>
+        </div>
+        <div>
+          <h3>Criação</h3>
+          <div id="recipes"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="modal" id="wardrobe" hidden>
     <div class="modal-card wardrobe-card" role="dialog" aria-labelledby="wrTitle">
       <header>
         <h2 id="wrTitle">Guarda-roupa</h2>
-        <div class="coins">🦴 <b id="wrCoins">0</b></div>
+        <div class="pill coins">🦴 <b id="wrCoins">0</b></div>
         <button class="x" data-close aria-label="Fechar">×</button>
       </header>
       <div class="tabs">
@@ -90,7 +132,7 @@
       </div>
       <div class="wr-body">
         <div class="preview">
-          <canvas id="preview" width="300" height="230"></canvas>
+          <canvas id="preview" width="300" height="240"></canvas>
           <label class="rename"><span id="nameLabel">Seu nome</span><input id="nameInput" maxlength="14"></label>
         </div>
         <div class="options">
@@ -102,46 +144,13 @@
     </div>
   </div>
 
-  <div class="modal" id="help" hidden>
-    <div class="modal-card help-card" role="dialog" aria-labelledby="helpTitle">
-      <header>
-        <h2 id="helpTitle">Bem-vindo a Cachocraft!</h2>
-        <button class="x" data-close aria-label="Fechar">×</button>
-      </header>
-      <p>Você é um cachorro e cuida do seu melhor amigo, <b data-dogname>Paçoca</b>. Aqui, o que faz mal para um cachorro de verdade também faz mal no jogo.</p>
-      <div class="help-grid">
-        <div>
-          <h3>Controles</h3>
-          <ul class="keys">
-            <li><kbd>WASD</kbd> / setas · andar (<kbd>Shift</kbd> corre)</li>
-            <li><kbd>E</kbd> · pegar, usar, fazer carinho</li>
-            <li><kbd>Clique</kbd> · jogar o que está na boca</li>
-            <li><kbd>R</kbd> · comer ou beber · <kbd>Q</kbd> soltar</li>
-            <li><kbd>Enter</kbd> · conversar · <kbd>C</kbd> guarda-roupa</li>
-          </ul>
-        </div>
-        <div>
-          <h3>Cuidar de <span data-dogname>Paçoca</span></h3>
-          <ul>
-            <li>Sacuda uma árvore, pegue o <b>graveto</b> e jogue: ele busca!</li>
-            <li>Pegue a jarra na <b>torneira</b> e encha o potinho azul.</li>
-            <li>Pegue <b>ração de osso e palha</b> no saco e encha o potinho vermelho.</li>
-            <li>Converse: ele entende quase como gente. Pergunte o que pode comer!</li>
-          </ul>
-        </div>
-      </div>
-      <div class="foods">
-        <div class="good"><h3>Pode comer</h3>Ração de osso e palha · petisco natural · cenoura · maçã sem sementes</div>
-        <div class="bad"><h3>Faz mal (dá dano!)</h3>Chocolate · uva · cebola · biscoito recheado · café · abacate · chiclete com xilitol</div>
-      </div>
-      <p class="tip">Se <span data-dogname>Paçoca</span> for comer algo perigoso, diga <b>"larga!"</b> no chat. Ganhe <b>ossinhos</b> brincando e troque por pelagens, coleiras e acessórios.</p>
-      <button class="btn big" id="helpStart">Bora brincar!</button>
-    </div>
+  <div id="nogl" hidden>
+    <p>Seu navegador não conseguiu iniciar o 3D (WebGL2). <a href="classico/">Jogue a versão 2D clássica</a>.</p>
   </div>
 
   <script src="js/data.js"></script>
   <script src="js/draw.js"></script>
   <script src="js/dogbrain.js"></script>
-  <script src="js/game.js"></script>
+  <script type="module" src="js/game.js"></script>
 </body>
 </html>
