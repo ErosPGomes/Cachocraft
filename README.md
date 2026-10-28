@@ -38,7 +38,7 @@ Seguem o padrão dos jogos de bloco, para quem já está acostumado:
 | `E` | inventário e criação |
 | `Q` | jogar o item da mão (o cachorro busca) |
 | `1`–`9` / rodinha | trocar item da barra |
-| `T`, `Enter` ou `/` | conversar com o cachorro |
+| `T`, `Enter` ou `/` | conversar com o cachorro (`/casa` volta para a casinha se ficar preso) |
 | `F5` (ou `V`) | câmera: primeira pessoa, por trás, pela frente |
 | `F1` | esconder a interface |
 | `C` | guarda-roupa |

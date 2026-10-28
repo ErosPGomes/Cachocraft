@@ -927,7 +927,7 @@ function updateDog(dt) {
 
   // física
   d.vy -= 26 * dt;
-  if (d.inWater) d.vy = Math.max(d.vy, -2) + (d.moving ? 18 * dt : 0);
+  if (d.inWater) d.vy = d.moving && d.hitWall ? 11.5 : Math.max(d.vy, -2) + (d.moving ? 18 * dt : 0);
   const px = d.x, pz = d.z;
   World.moveBody(d, dt);
   if (d.moving && d.hitWall && d.onGround) d.wantJump = true;
@@ -944,9 +944,21 @@ function dogPose() {
 }
 
 // ---------- chat ----------
+// comandos de chat: /casa leva você e o cachorro de volta para a casinha
+let pitHint = false;
+function runCommand(cmd) {
+  if (['casa', 'spawn', 'inicio', 'início', 'home'].includes(cmd)) {
+    Object.assign(player, { ...spawn, vx: 0, vy: 0, vz: 0 });
+    teleportDogNear(player); dogIdle();
+    logMsg('sys', 'Você voltou para a casinha.');
+    return;
+  }
+  logMsg('sys', 'Comando desconhecido. Disponível: /casa (volta para a casinha).');
+}
 function sendChat(text) {
   text = text.trim();
   if (!text) return;
+  if (text.startsWith('/')) return runCommand(text.slice(1).trim().toLowerCase());
   logMsg('you', text);
   player.bubble = { text, t: 2.5 + text.length / 30 };
   const r = DogBrain.respond(text, {
@@ -1174,7 +1186,11 @@ function updatePlayer(dt) {
   p.vx = lerp(p.vx, mx * sp, Math.min(1, dt * accel));
   p.vz = lerp(p.vz, mz * sp, Math.min(1, dt * accel));
   p.vy -= 26 * dt;
-  if (p.inWater) { p.vy = Math.max(p.vy, -2.5); if (keys[' ']) p.vy = 3.2; }
+  if (p.inWater) { p.vy = Math.max(p.vy, -2.5); if (keys[' ']) p.vy = p.hitWall ? 11.5 : 3.2; }
+  if (!pitHint && p.y <= GROUND - 3 && p.onGround) {
+    pitHint = true;
+    toast('Buraco fundo! Para sair: pule e coloque um bloco embaixo de você (clique dir. olhando para o chão), cave degraus na parede, nade encostado na parede, ou digite /casa no chat.', 'info', 9000);
+  }
   else if (keys[' '] && p.onGround) p.vy = 8.6;
   const ox = p.x, oz = p.z, wasGround = p.onGround;
   World.moveBody(p, dt);
@@ -1672,4 +1688,4 @@ function step(n = 60, dt = 1 / 60) {
   updateHud(dt);
   renderer.render(scene, camera);
 }
-window.__cachocraft = { step, mine: v => { mouseDown = v; }, player, dog, save, sendChat, inv, World, get items() { return items; }, addItem, setSel: i => { sel = i; renderHotbar(true); }, useRight, camera, ticks, setRight: v => { rightDown = v; }, cycleCamera, get camMode() { return camMode; }, get useTarget() { return useTarget; }, setDay: v => { save.dayT = v; }, get aim() { return aim; }, setCam: (y, p) => { camYaw = y; camPitch = p; } };
+window.__cachocraft = { step, keys, mine: v => { mouseDown = v; }, player, dog, save, sendChat, inv, World, get items() { return items; }, addItem, setSel: i => { sel = i; renderHotbar(true); }, useRight, camera, ticks, setRight: v => { rightDown = v; }, cycleCamera, get camMode() { return camMode; }, get useTarget() { return useTarget; }, setDay: v => { save.dayT = v; }, get aim() { return aim; }, setCam: (y, p) => { camYaw = y; camPitch = p; } };
