@@ -6,7 +6,9 @@ E tem uma regra de ouro: **o que faz mal para um cachorro na vida real também f
 
 > **Versão 3D (mundo de blocos)** na raiz. A versão 2D original continua jogável em [`classico/`](classico/).
 
-Na 3D você cava (segure o clique esquerdo), coloca blocos (clique direito), cria itens no inventário (`I`) com receitas próprias, como palha + osso → ração, e constrói. O motor de blocos foi adaptado do repositório [animation](https://github.com/ErosPGomes/animation). Use `Espaço` para pular e `V` para trocar a distância da câmera.
+Na 3D você cava, constrói e cria itens com receitas próprias, como palha + osso → ração. O motor de blocos foi adaptado do repositório [animation](https://github.com/ErosPGomes/animation).
+
+**Jogue online:** https://erospgomes.github.io/Cachocraft/
 
 ## Como jogar
 
