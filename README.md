@@ -18,23 +18,48 @@ python -m http.server 8123
 
 e acesse http://localhost:8123.
 
-### Controles
+### Controles (versão 3D)
 
 | Tecla | Ação |
 | --- | --- |
-| `WASD` / setas | andar (`Shift` corre) |
-| `E` ou `Espaço` | pegar, usar, fazer carinho, dar comida |
-| Clique | jogar o que está na boca |
+| `WASD` | andar (`Shift` corre) |
+| `Espaço` | pular |
+| Mouse | olhar (clique na tela para travar o ponteiro) |
+| Clique esquerdo (segurar) | cavar o bloco |
+| Clique direito | colocar bloco ou jogar o item da mão |
+| `1`–`9` / rodinha | trocar item da barra |
+| `E` | usar, fazer carinho, dar comida, encher potinho |
 | `R` | comer / beber |
 | `Q` | soltar |
-| `Enter` | conversar com o cachorro |
+| `I` ou `Tab` | inventário e criação |
 | `C` | guarda-roupa |
+| `Enter` | conversar com o cachorro |
+| `V` | aproximar/afastar a câmera |
 
-No celular: arraste no lado esquerdo da tela para andar e toque no lado direito para usar/jogar.
+Os controles da versão 2D estão na própria tela de `classico/`.
+
+## Receitas
+
+| Ingredientes | Resultado |
+| --- | --- |
+| 1 tronco | 4 tábuas |
+| 1 tábua | 4 gravetos |
+| 4 capim | 1 fardo de palha |
+| 1 palha + 1 osso | 3 rações |
+| 1 osso + 1 cenoura | 2 petiscos |
+| 4 rações | 1 bloco de ração |
+| 4 ossos | 1 bloco de osso |
+| 2 areia | 1 vidro |
+| 2 terra + 1 areia | 4 telhas |
+| 2 pedregulho + 1 areia | 4 paredes brancas |
+| 1 palha + 1 flor vermelha | 2 tapetes de pelo |
+| 10 tábuas + 6 telhas | kit casinha de cachorro (monta a casinha na sua frente) |
+
+Ossos saem dos fósseis escondidos na pedra; gravetos e maçãs caem das folhas.
 
 ## O que dá pra fazer
 
-- **Buscar graveto**: sacuda uma árvore, pegue o graveto e jogue. O Paçoca busca e traz de volta.
+- **Buscar graveto**: quebre folhas ou crie gravetos com tábuas e jogue (clique direito). O Paçoca busca e traz de volta.
 - **Potinho de água**: pegue a jarra na torneira e encha o potinho azul.
 - **Ração de osso e palha**: pegue uma porção no saco e encha o potinho vermelho.
 - **Conversar**: o Paçoca entende quase como gente. Dê comandos ("senta", "deita", "dá a pata", "vem", "fica", "me segue", "busca", "larga!"), pergunte como ele está, se pode comer alguma coisa, mude o nome dele ("seu nome agora é Thor") ou diga o seu ("meu nome é Ana").
@@ -57,12 +82,17 @@ No celular: arraste no lado esquerdo da tela para andar e toque no lado direito 
 ## Estrutura
 
 ```
-index.html        página e interface
+index.html        página e interface (versão 3D)
 css/style.css     estilos
-js/data.js        catálogo de skins e itens
-js/draw.js        desenho procedural (canvas)
+js/vendor/        Three.js r160
+js/world.js       blocos, terreno, pedaços (chunks) e malha com AO
+js/textures.js    atlas de texturas procedurais
+js/dog3d.js       modelo 3D do cachorro com pele pintada pela skin
+js/data.js        catálogo de skins, itens, comidas e receitas
+js/draw.js        desenho procedural (ícones e prévia do guarda-roupa)
 js/dogbrain.js    conversa: entende frases em português
-js/game.js        mundo, jogador, IA do cachorro, HUD
+js/game.js        jogador, IA do Paçoca, inventário, criação, HUD
+classico/         backup jogável da versão 2D original
 ```
 
 O progresso (ossinhos, skins, nomes, o que o Paçoca aprendeu) fica salvo no navegador.
