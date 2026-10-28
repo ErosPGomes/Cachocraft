@@ -3,6 +3,7 @@ import * as THREE from './vendor/three.module.min.js';
 import * as World from './world.js';
 import { BLOCKS, B, HOME, HOUSE, BOWLS, VET_DOOR } from './world.js';
 import { makeDog } from './dog3d.js';
+import { makeHuman, HUMANS } from './human3d.js';
 import { clamp, lerp, hash2 } from './textures.js';
 
 const $ = s => document.querySelector(s);
@@ -11,6 +12,8 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 const dist2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const dist3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const GROUND = 13;
+CATALOG.body = { cachorro: { name: 'Cachorro', price: 0, icon: '🐶' }, humano: { name: 'Humano', price: 0, icon: '🧑' } };
+CATALOG.human = HUMANS;
 
 // ---------- save ----------
 const SAVE_KEY = 'cachocraft3d-save-v1', WORLD_KEY = 'cachocraft3d-world-v1';
@@ -255,8 +258,17 @@ const selKey = () => inv[sel]?.key || null;
 // ---------- entidades: jogador e Paçoca ----------
 const spawn = { x: HOME.x + .5, y: GROUND, z: HOME.z + 2.5 };
 const player = { ...spawn, vx: 0, vy: 0, vz: 0, hw: .3, h: .9, yaw: Math.PI, onGround: false, hp: 100, hunger: 90, thirst: 90, hurtT: 0, downT: 0, bubble: null };
-const pModel = makeDog(save.playerSkin, 1.1);
-scene.add(pModel.root);
+save.playerSkin.body ||= 'cachorro';
+save.playerSkin.human ||= 'tutora';
+const isHuman = () => save.playerSkin.body === 'humano';
+let pModel = null;
+function buildPlayerModel() {
+  if (pModel) scene.remove(pModel.root);
+  pModel = isHuman() ? makeHuman(save.playerSkin, 1) : makeDog(save.playerSkin, 1.1);
+  player.h = isHuman() ? 1.75 : .9;
+  scene.add(pModel.root);
+}
+buildPlayerModel();
 
 const dog = {
   x: HOME.x - 1.5, y: GROUND, z: HOME.z + 1.5, vx: 0, vy: 0, vz: 0, hw: .26, h: .8, yaw: 0, onGround: false,
@@ -388,37 +400,83 @@ function hearts(pos, n = 3) {
 }
 
 // ---------- câmera e mira ----------
-let camYaw = Math.PI, camPitch = -0.28, camDist = 4.6;
-const camTarget = new THREE.Vector3(), lookDir = new THREE.Vector3();
+// F5 alterna: primeira pessoa, terceira pessoa por trás, terceira pessoa pela frente.
+let camYaw = Math.PI, camPitch = -0.28, camMode = 1;
+const CAM_NAMES = ['Primeira pessoa', 'Terceira pessoa (atrás)', 'Terceira pessoa (frente)'];
+const CAM_DIST = 4.6;
+const camTarget = new THREE.Vector3(), lookDir = new THREE.Vector3(), rayO = new THREE.Vector3();
+const eyeH = () => isHuman() ? 1.6 : .95;
+function cycleCamera() {
+  camMode = (camMode + 1) % 3;
+  toast(`Câmera: ${CAM_NAMES[camMode]}`, 'info', 1500);
+}
 function updateCamera() {
-  camTarget.set(player.x, player.y + 1.25, player.z);
   lookDir.set(Math.sin(camYaw) * Math.cos(camPitch), Math.sin(camPitch), Math.cos(camYaw) * Math.cos(camPitch));
-  const back = lookDir.clone().negate();
-  const hit = World.raycast(camTarget, back, camDist, World.isSolid);
-  const d = hit ? Math.max(.5, hit.t - .25) : camDist;
-  camera.position.copy(camTarget).addScaledVector(back, d);
-  camera.lookAt(camTarget.clone().addScaledVector(lookDir, 2));
+  if (camMode === 0) {
+    const fwd = isHuman() ? .1 : .42;
+    camera.position.set(player.x + Math.sin(camYaw) * fwd, player.y + eyeH() - (sneaking ? .2 : 0), player.z + Math.cos(camYaw) * fwd);
+    camera.lookAt(camera.position.clone().add(lookDir));
+    rayO.copy(camera.position);
+    pModel.root.visible = player.downT > 0;
+    return;
+  }
+  camTarget.set(player.x, player.y + (isHuman() ? 1.7 : 1.25), player.z);
+  const away = camMode === 1 ? lookDir.clone().negate() : lookDir.clone();
+  const hit = World.raycast(camTarget, away, CAM_DIST, World.isSolid);
+  const d = hit ? Math.max(.5, hit.t - .25) : CAM_DIST;
+  camera.position.copy(camTarget).addScaledVector(away, d);
+  camera.lookAt(camMode === 1 ? camTarget.clone().addScaledVector(lookDir, 2) : camTarget);
+  rayO.copy(camMode === 1 ? camera.position : camTarget);
   // modelo do jogador some quando a câmera encosta nele
   pModel.root.visible = d > 1.1 || player.downT > 0;
 }
 const REACH = 5.5;
-let aim = null;
-function updateAim() {
-  aim = null;
-  const hit = World.raycast(camera.position, lookDir, camDist + REACH);
-  if (hit) {
-    const head = { x: player.x, y: player.y + .8, z: player.z };
-    if (dist3(head, { x: hit.x + .5, y: hit.y + .5, z: hit.z + .5 }) <= REACH) aim = hit;
+let aim = null, useTarget = null, hitTarget = null;
+const headPos = () => ({ x: player.x, y: player.y + eyeH() - .1, z: player.z });
+// Escolhe o alvo mais próximo cujo raio cruza a linha da mira.
+function rayPick(list, maxT) {
+  const head = headPos();
+  let best = null;
+  for (const c of list) {
+    const vx = c.x - rayO.x, vy = c.y - rayO.y, vz = c.z - rayO.z;
+    const t = vx * lookDir.x + vy * lookDir.y + vz * lookDir.z;
+    if (t < 0 || t > maxT) continue;
+    const off = Math.hypot(rayO.x + lookDir.x * t - c.x, rayO.y + lookDir.y * t - c.y, rayO.z + lookDir.z * t - c.z);
+    if (off > c.r || dist3(head, c) > 3.8) continue;
+    if (!best || t < best.t) best = { ...c, t };
   }
-  highlight.visible = !!aim && !uiBlocking();
+  return best;
+}
+function updateAim() {
+  const maxT = (camMode === 1 ? CAM_DIST : 0) + REACH;
+  aim = null;
+  const hit = World.raycast(rayO, lookDir, maxT);
+  if (hit && dist3(headPos(), { x: hit.x + .5, y: hit.y + .5, z: hit.z + .5 }) <= REACH) aim = hit;
+  const blockT = aim ? aim.t : Infinity;
+  useTarget = rayPick(useCandidates(), maxT);
+  if (useTarget && useTarget.t > blockT + .3) useTarget = null;
+  hitTarget = rayPick(ticks.map(k => ({ x: k.x, y: k.y + .25, z: k.z, r: .55, tick: k })), maxT);
+  if (hitTarget && hitTarget.t > blockT + .3) hitTarget = null;
+  highlight.visible = !!aim && !useTarget && !hitTarget && !uiBlocking();
   if (aim) highlight.position.set(aim.x + .5, aim.y + .5, aim.z + .5);
 }
 
 // ---------- ações do jogador ----------
-let mining = null;
+let mining = null, attackCd = 0, swingT = 0, eating = null, rightDown = false, sneaking = false, sprinting = false, foundBones = false, warnedWater = false;
 function mineTick(dt) {
   const ring = $('#mineRing');
+  attackCd -= dt;
+  if (mouseDown && hitTarget && player.downT <= 0) {
+    if (attackCd <= 0) { attackCd = .45; swingT = .25; hitTick(hitTarget.tick); }
+    mining = null; ring.style.opacity = 0; return;
+  }
+  if (eating) {
+    ring.style.opacity = 1;
+    ring.style.setProperty('--p', `${Math.min(1, eating.p) * 360}deg`);
+    return;
+  }
   if (!mouseDown || !aim || player.downT > 0) { mining = null; ring.style.opacity = 0; return; }
+  swingT = .2;
   const def = BLOCKS[aim.b];
   if (aim.y <= 0 || def.hard >= 99) { ring.style.opacity = 0; return; }
   if (!mining || mining.x !== aim.x || mining.y !== aim.y || mining.z !== aim.z) mining = { x: aim.x, y: aim.y, z: aim.z, p: 0, tick: 0 };
@@ -440,6 +498,12 @@ function breakBlock(x, y, z, b) {
   worldDirty = true;
   Sfx.pop();
   const pos = { x: x + .5, y, z: z + .5 };
+  if (World.seep(x, y, z) && !warnedWater) {
+    warnedWater = true;
+    toast('Brotou água! Em baixadas, cavando abaixo do nível do lago você chega no lençol freático.', 'info', 5000);
+  }
+  if (b === B.fossil && !foundBones) { foundBones = true; toast('Você achou um fóssil! Quanto mais fundo, mais ossos. Osso + palha vira ração.', 'good', 5000); }
+  if (b === B.pedra && y <= GROUND - 6 && Math.random() < .18) { addItem('osso'); floatText({ ...pos, y: y + .4 }, '+1 osso!', '#b8860b'); }
   if (b === B.folhas || b === B.folhas_maca) {
     if (Math.random() < .3) spawnItem('graveto', pos.x, y, pos.z, { pickDelay: .3 });
     if (b === B.folhas_maca && Math.random() < .35) spawnItem('maca', pos.x, y, pos.z, { pickDelay: .3 });
@@ -454,6 +518,8 @@ function overlapsBody(x, y, z, e) {
 }
 function useRight() {
   if (player.downT > 0) return;
+  swingT = .25;
+  if (useTarget) return useTarget.fn();
   const key = selKey();
   if (!key) return;
   if (isBlockKey(key)) {
@@ -471,8 +537,16 @@ function useRight() {
     return;
   }
   if (key === 'kit_casinha') return buildDoghouse();
-  if (key === 'jarra') return toast('Use a jarra no potinho azul (E) ou beba (R).', 'info', 3000);
-  throwSelected(12);
+  if (key === 'graveto' || key === 'osso') return throwSelected(12);
+  // comida e água: segure o clique direito para comer/beber
+  if (isEdible(key) || key === 'jarra') eating = { key, p: 0, tick: 0 };
+}
+function eatTick(dt) {
+  if (!eating) return;
+  if (!rightDown || selKey() !== eating.key || player.downT > 0) { eating = null; return; }
+  eating.p += dt / 1.1;
+  if ((eating.tick -= dt) <= 0) { eating.tick = .28; if (eating.key === 'jarra') Sfx.drink(); else Sfx.chomp(); }
+  if (eating.p >= 1) { eating = null; eatSelected(); }
 }
 function throwSelected(power) {
   const key = takeSelected();
@@ -513,7 +587,7 @@ function buildDoghouse() {
 }
 function eatSelected() {
   const key = selKey();
-  if (!key) return toast('Selecione uma comida na barra (1–9) e aperte R.', 'info', 3000);
+  if (!key) return toast('Selecione uma comida na barra (1–9) e segure o clique direito.', 'info', 3000);
   const it = ITEMS[key];
   if (key === 'jarra') {
     takeSelected();
@@ -535,30 +609,24 @@ function eatSelected() {
   }
 }
 
-// ---------- interações (E) ----------
-function interactions() {
-  const p = player, key = selKey(), out = [], n = dogName();
-  const add = (pos, max, label, fn) => { const d = dist2(p, pos); if (d < max && Math.abs((pos.y ?? GROUND) - p.y) < 1.6) out.push({ d, label, fn }); };
-  if (key && isEdible(key)) add(dog, 2.2, `Dar ${itemName(key).toLowerCase()} para ${n}`, giveToDog);
-  else add(dog, 2.2, `Fazer carinho em ${n}`, petDog);
-  add({ x: faucet.position.x, z: faucet.position.z }, 1.8, "Pegar jarra d'água", () => { addItem('jarra'); Sfx.drink(); floatText(player, "+1 jarra d'água", '#2f7fd6'); });
-  add({ x: bagProp.position.x, z: bagProp.position.z }, 1.8, 'Pegar ração de osso e palha', () => { addItem('racao'); floatText(player, '+1 ração', '#9a6234'); });
-  add(waterBowl, 1.6, countOf('jarra') ? 'Encher potinho de água' : waterBowl.level > .1 ? 'Beber do potinho' : 'Potinho vazio (pegue água na torneira)', () => {
+// ---------- interações (clique direito mirando) ----------
+function useCandidates() {
+  const key = selKey(), n = dogName(), out = [];
+  const add = (x, y, z, r, label, fn) => out.push({ x, y, z, r, label, fn });
+  if (key && isEdible(key)) add(dog.x, dog.y + .45, dog.z, .8, `Dar ${itemName(key).toLowerCase()} para ${n}`, giveToDog);
+  else add(dog.x, dog.y + .45, dog.z, .8, `Fazer carinho em ${n}`, petDog);
+  add(faucet.position.x, GROUND + .7, faucet.position.z, .6, "Pegar jarra d'água", () => { addItem('jarra'); Sfx.drink(); floatText(player, "+1 jarra d'água", '#2f7fd6'); });
+  add(bagProp.position.x, GROUND + .4, bagProp.position.z, .6, 'Pegar ração de osso e palha', () => { addItem('racao'); floatText(player, '+1 ração', '#9a6234'); });
+  add(waterBowl.x, GROUND + .15, waterBowl.z, .5, countOf('jarra') ? 'Encher potinho de água' : waterBowl.level > .1 ? 'Beber do potinho' : 'Potinho vazio (pegue água na torneira)', () => {
     if (removeItem('jarra')) fillBowl(waterBowl);
     else if (waterBowl.level > .1) { waterBowl.level = Math.max(0, waterBowl.level - .35); player.thirst = clamp(player.thirst + 25, 0, 100); Sfx.drink(); dogSay('Ei! Esse potinho é meu! ...tá bom, pode beber um pouco.'); }
   });
-  add(foodBowl, 1.6, countOf('racao') ? 'Colocar ração no potinho' : foodBowl.level > .1 ? 'Comer do potinho' : 'Potinho vazio (pegue ração no saco)', () => {
+  add(foodBowl.x, GROUND + .15, foodBowl.z, .5, countOf('racao') ? 'Colocar ração no potinho' : foodBowl.level > .1 ? 'Comer do potinho' : 'Potinho vazio (pegue ração no saco)', () => {
     if (removeItem('racao')) fillBowl(foodBowl);
     else if (foodBowl.level > .1) { foodBowl.level = Math.max(0, foodBowl.level - .35); player.hunger = clamp(player.hunger + 20, 0, 100); Sfx.chomp(); dogSay('Hmm... você tá comendo a MINHA ração?'); }
   });
-  add(VET_DOOR, 2.4, `Veterinário (${save.coins >= 5 ? '5 ossinhos' : 'grátis hoje'})`, visitVet);
-  out.sort((a, b) => a.d - b.d);
-  return out[0] || null;
-}
-function interact() {
-  if (player.downT > 0) return;
-  const i = interactions();
-  if (i) i.fn();
+  add(VET_DOOR.x, GROUND + 1, VET_DOOR.z - .6, 1.1, `Veterinário (${save.coins >= 5 ? '5 ossinhos' : 'grátis hoje'})`, visitVet);
+  return out;
 }
 function fillBowl(b) {
   const wasEmpty = b.level < .15;
@@ -783,7 +851,22 @@ function updateDog(dt) {
     }
   }
 
+  if (ticks.length && !['sick', 'eating', 'bowlUse', 'fetchBack', 'chaseTick'].includes(d.state) && d.mode !== 'stay') {
+    const k = ticks.find(t => dist2(t, d) < 7);
+    if (k) { d.state = 'chaseTick'; d.target = k; Sfx.bark(); dogSay('AU AU AU! Sai daqui, carrapato!', false); }
+  }
   switch (d.state) {
+    case 'chaseTick': {
+      const k = d.target;
+      if (!ticks.includes(k) || dist2(k, d) > 12) { dogIdle(); break; }
+      if (dogMoveTo(k.x, k.z, 6.5, .6) && (d.biteCd = (d.biteCd || 0) - dt) <= 0) {
+        d.biteCd = .6;
+        const dx = k.x - d.x, dz = k.z - d.z, l = Math.hypot(dx, dz) || 1;
+        k.hp -= 1; k.hurtT = .25; k.vx = dx / l * 5; k.vz = dz / l * 5; k.vy = 4;
+        if (k.hp <= 0) { killTick(k); dogSay('Pegueeei! Ninguém mexe com a minha família!', false); d.happy = clamp(d.happy + 8, 0, 100); dogIdle(); }
+      }
+      break;
+    }
     case 'sick': if (d.health >= 35) { d.sickWarned = false; dogIdle(); } break;
     case 'idle': dogThink(dt); break;
     case 'wander': if (dogMoveTo(d.target.x, d.target.z, 2.6, .4)) dogIdle(); dogNeeds(); break;
@@ -880,50 +963,65 @@ function sendChat(text) {
   setTimeout(() => dogSay(reply), 250);
 }
 
-// ---------- entrada ----------
+// ---------- entrada (no padrão dos jogos de bloco: WASD, E inventário, T chat, Q jogar, F5 câmera) ----------
 const keys = {};
-let mouseDown = false, locked = false, chatOpen = false;
+let mouseDown = false, locked = false, chatOpen = false, lastW = 0;
+const touchMode = matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0;
+if (touchMode) document.body.classList.add('touch');
+const active = () => locked || (touchMode && !uiBlocking() && !chatOpen);
 const chatInput = $('#chatInput');
 const modalOpen = () => !$('#inventory').hidden || !$('#wardrobe').hidden;
 const uiBlocking = () => modalOpen() || !$('#lock').hidden;
 const paused = () => uiBlocking();
 
-const showLock = () => { if (!modalOpen() && !chatOpen && !locked) $('#lock').hidden = false; };
+const showLock = () => { if (!modalOpen() && !chatOpen && !locked && !touchMode) $('#lock').hidden = false; };
 function lockPointer() {
+  if (touchMode) { $('#lock').hidden = true; return; }
   try { const r = canvas.requestPointerLock?.(); r?.catch?.(showLock); } catch { showLock(); }
 }
 document.addEventListener('pointerlockerror', showLock);
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas;
-  if (!locked) { mouseDown = false; for (const k in keys) keys[k] = false; }
+  if (!locked) { mouseDown = rightDown = false; for (const k in keys) keys[k] = false; }
   if (!locked && !modalOpen() && !chatOpen) $('#lock').hidden = false;
   if (locked) $('#lock').hidden = true;
 });
 $('#btnPlay').addEventListener('click', e => { e.stopPropagation(); $('#lock').hidden = true; lockPointer(); });
-canvas.addEventListener('click', () => { if (!locked && !modalOpen()) lockPointer(); });
+canvas.addEventListener('click', () => { if (!locked && !modalOpen() && !touchMode) lockPointer(); });
 
 addEventListener('mousemove', e => {
   if (!locked) return;
   camYaw -= e.movementX * .0026;
-  camPitch = clamp(camPitch - e.movementY * .0022, -1.25, .9);
+  camPitch = clamp(camPitch - e.movementY * .0022, -1.45, 1.45);
 });
 addEventListener('mousedown', e => {
   if (!locked) return;
   if (e.button === 0) mouseDown = true;
-  if (e.button === 2) useRight();
+  if (e.button === 2) { rightDown = true; useRight(); }
+  if (e.button === 1) pickBlock();
 });
-addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; });
-addEventListener('contextmenu', e => { if (locked) e.preventDefault(); });
+addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; if (e.button === 2) rightDown = false; });
+addEventListener('contextmenu', e => { if (locked || touchMode) e.preventDefault(); });
 addEventListener('wheel', e => {
   if (!locked) return;
   sel = (sel + (e.deltaY > 0 ? 1 : 8)) % 9;
   renderHotbar(true);
 });
+// botão do meio: pega um bloco igual ao que está na mira, se tiver no inventário
+function pickBlock() {
+  if (!aim) return;
+  const key = BLOCKS[aim.b].key, i = inv.findIndex(it => it && it.key === key);
+  if (i < 0) return;
+  if (i < 9) sel = i;
+  else { const t = inv[sel]; inv[sel] = inv[i]; inv[i] = t; }
+  renderHotbar(true);
+}
 
-function openChat() {
+function openChat(prefix = '') {
   chatOpen = true;
   $('#chat').classList.add('open');
   document.exitPointerLock?.();
+  chatInput.value = prefix;
   setTimeout(() => chatInput.focus(), 0);
 }
 function closeChat(relock = true) {
@@ -940,24 +1038,96 @@ addEventListener('keydown', e => {
   if (document.activeElement?.tagName === 'INPUT') return;
   const k = e.key.toLowerCase();
   if (modalOpen()) {
-    if (k === 'escape' || (k === 'i' && !$('#inventory').hidden) || (k === 'c' && !$('#wardrobe').hidden)) closeModals();
+    if (k === 'escape' || ((k === 'e' || k === 'i') && !$('#inventory').hidden) || (k === 'c' && !$('#wardrobe').hidden)) { e.preventDefault(); closeModals(); }
     return;
   }
-  if (k === 'enter') { e.preventDefault(); openChat(); return; }
-  if (!locked) return;
-  if ([' ', 'tab'].includes(k)) e.preventDefault();
+  if (!active()) return;
+  if (k === 'enter' || k === 't') { e.preventDefault(); openChat(); return; }
+  if (k === '/') { e.preventDefault(); openChat(''); return; }
+  if ([' ', 'tab', 'f5', 'f1', 'control'].includes(k)) e.preventDefault();
+  if (!e.repeat && k === 'w') { if (performance.now() - lastW < 300) sprinting = true; lastW = performance.now(); }
   keys[k] = true;
   if (e.repeat) return;
   if (k >= '1' && k <= '9') { sel = +k - 1; renderHotbar(true); }
-  else if (k === 'e') interact();
+  else if (k === 'e' || k === 'i' || k === 'tab') openInventory();
+  else if (k === 'q') throwSelected(e.ctrlKey ? 8 : 6, e.ctrlKey);
   else if (k === 'r') eatSelected();
-  else if (k === 'q') throwSelected(3);
-  else if (k === 'i' || k === 'tab') openInventory();
   else if (k === 'c') openWardrobe();
-  else if (k === 'f5' || k === 'v') camDist = camDist > 3 ? 1.6 : 4.6;
+  else if (k === 'f5' || k === 'v') cycleCamera();
+  else if (k === 'f1') document.body.classList.toggle('nohud');
 });
-addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = false; });
+addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  keys[k] = false;
+  if (k === 'w') sprinting = false;
+});
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = rightDown = sprinting = false; });
+
+// ---------- toque (celular/tablet) ----------
+const joy = { id: null, ox: 0, oy: 0, dx: 0, dy: 0 };
+const look = { id: null, x: 0, y: 0, t0: 0, moved: 0, hold: null };
+function touchSetup() {
+  const stick = $('#tStick'), knob = $('#tKnob');
+  canvas.addEventListener('touchstart', e => {
+    if (!active()) return;
+    for (const t of e.changedTouches) {
+      if (t.clientX < innerWidth * .4 && joy.id === null) {
+        Object.assign(joy, { id: t.identifier, ox: t.clientX, oy: t.clientY, dx: 0, dy: 0 });
+        stick.style.display = 'block';
+        stick.style.transform = `translate(${t.clientX - 60}px, ${t.clientY - 60}px)`;
+        knob.style.transform = 'translate(0px, 0px)';
+      } else if (look.id === null) {
+        Object.assign(look, { id: t.identifier, x: t.clientX, y: t.clientY, t0: performance.now(), moved: 0 });
+        // segurar sem arrastar = cavar / atacar
+        look.hold = setTimeout(() => { if (look.moved < 12) mouseDown = true; }, 300);
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === joy.id) {
+        const dx = t.clientX - joy.ox, dy = t.clientY - joy.oy, d = Math.hypot(dx, dy) || 1, k = Math.min(d, 50) / d;
+        joy.dx = dx * k / 50; joy.dy = dy * k / 50;
+        knob.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
+      } else if (t.identifier === look.id) {
+        const dx = t.clientX - look.x, dy = t.clientY - look.y;
+        look.moved += Math.abs(dx) + Math.abs(dy);
+        look.x = t.clientX; look.y = t.clientY;
+        camYaw -= dx * .006;
+        camPitch = clamp(camPitch - dy * .005, -1.45, 1.45);
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
+  const end = e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === joy.id) { joy.id = null; joy.dx = joy.dy = 0; stick.style.display = 'none'; }
+      else if (t.identifier === look.id) {
+        clearTimeout(look.hold);
+        // toque rápido = usar (como o clique direito)
+        if (!mouseDown && look.moved < 12 && performance.now() - look.t0 < 300) { rightDown = true; useRight(); setTimeout(() => { if (!eating) rightDown = false; }, 50); }
+        mouseDown = false;
+        look.id = null;
+      }
+    }
+  };
+  canvas.addEventListener('touchend', end);
+  canvas.addEventListener('touchcancel', end);
+  const hold = (id, on, off) => {
+    const el = $(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); on(); }, { passive: false });
+    el.addEventListener('touchend', e => { e.preventDefault(); off?.(); }, { passive: false });
+  };
+  hold('#tJump', () => { keys[' '] = true; }, () => { keys[' '] = false; });
+  hold('#tSneak', () => { keys.shift = !keys.shift; $('#tSneak').classList.toggle('on', keys.shift); });
+  hold('#tEat', () => { rightDown = true; const k = selKey(); if (k && (isEdible(k) || k === 'jarra')) eating = { key: k, p: 0, tick: 0 }; }, () => { rightDown = false; });
+  hold('#tThrow', () => throwSelected(6));
+  hold('#tInv', () => openInventory());
+  hold('#tChat', () => openChat());
+  hold('#tCam', () => cycleCamera());
+}
+if (touchMode) touchSetup();
 
 // ---------- jogador ----------
 function updatePlayer(dt) {
@@ -988,20 +1158,35 @@ function updatePlayer(dt) {
   if (keys.s || keys.arrowdown) f -= 1;
   if (keys.a || keys.arrowleft) s -= 1;
   if (keys.d || keys.arrowright) s += 1;
+  if (joy.id !== null) { f = -joy.dy; s = joy.dx; }
   const fx = Math.sin(camYaw), fz = Math.cos(camYaw), rx = -fz, rz = fx;
   let mx = fx * f + rx * s, mz = fz * f + rz * s;
-  const len = Math.hypot(mx, mz);
-  const sp = (keys.shift ? 6.6 : 4.3) * (p.inWater ? .55 : 1);
-  if (len > 0) { mx /= len; mz /= len; p.yaw = lerpAngle(p.yaw, Math.atan2(mx, mz), Math.min(1, dt * 12)); }
-  else if (mouseDown && aim) p.yaw = lerpAngle(p.yaw, camYaw, Math.min(1, dt * 10));
+  const len = Math.min(1, Math.hypot(mx, mz));
+  sneaking = !!keys.shift && !p.inWater;
+  if (keys.control && f > 0) sprinting = true;
+  if (f <= 0 || sneaking || p.hunger < 6) sprinting = false;
+  if (joy.id !== null && Math.hypot(joy.dx, joy.dy) > .95 && f > .5) sprinting = true;
+  const sp = (sneaking ? 1.4 : sprinting ? 6.6 : 4.3) * (p.inWater ? .55 : 1) * (eating ? .4 : 1);
+  if (len > .05) { const l = Math.hypot(mx, mz); mx = mx / l * len; mz = mz / l * len; }
+  if (camMode === 0 || mouseDown || eating || swingT > 0) p.yaw = lerpAngle(p.yaw, camYaw, Math.min(1, dt * 14));
+  else if (len > .05) p.yaw = lerpAngle(p.yaw, Math.atan2(mx, mz), Math.min(1, dt * 12));
   const accel = p.onGround ? 14 : 5;
   p.vx = lerp(p.vx, mx * sp, Math.min(1, dt * accel));
   p.vz = lerp(p.vz, mz * sp, Math.min(1, dt * accel));
   p.vy -= 26 * dt;
   if (p.inWater) { p.vy = Math.max(p.vy, -2.5); if (keys[' ']) p.vy = 3.2; }
   else if (keys[' '] && p.onGround) p.vy = 8.6;
+  const ox = p.x, oz = p.z, wasGround = p.onGround;
   World.moveBody(p, dt);
-  p.moving = len > 0;
+  // agachado não cai da beirada
+  if (sneaking && wasGround && !p.onGround && p.vy <= 0) {
+    const ground = (x, z) => World.boxHits(x, p.y - .08, z, p.hw, .06);
+    if (!ground(p.x, oz)) p.x = ox;
+    if (!ground(p.x, p.z)) p.z = oz;
+    if (ground(p.x, p.z)) { p.onGround = true; p.vy = 0; }
+  }
+  p.moving = len > .05;
+  swingT -= dt;
   if (p.y < -10) Object.assign(p, { ...spawn, vy: 0 });
 
   for (const it of [...items]) {
@@ -1040,6 +1225,86 @@ function updateItems(dt) {
   for (const it of items) it.sprite.position.set(it.x, it.y + .3 + (it.rest ? Math.sin(time * 2.5 + it.phase) * .06 : 0), it.z);
 }
 
+// ---------- noite: carrapatos gigantes ----------
+// Criaturas originais de Cachocraft: saem à noite, pulam atrás de você e do cachorro; a casinha é zona segura.
+const ticks = [];
+const tickMats = { body: lamb('#7a2e26'), back: lamb('#3a1a16'), leg: lamb('#2a1512'), eye: new THREE.MeshBasicMaterial({ color: 0xffe6a0 }) };
+let tickFactShown = false, nightWarned = false, dayK = 1;
+function makeTickMesh() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(.3, 10, 8), tickMats.body);
+  body.scale.set(1, .62, 1.2); body.position.y = .24; body.castShadow = true;
+  const back = new THREE.Mesh(new THREE.SphereGeometry(.2, 8, 6), tickMats.back);
+  back.scale.set(1, .5, 1); back.position.set(0, .38, .12);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(.14, .1, .14), tickMats.back);
+  head.position.set(0, .22, .4);
+  g.add(body, back, head);
+  for (const ex of [-.04, .04]) { const e = new THREE.Mesh(new THREE.BoxGeometry(.03, .03, .02), tickMats.eye); e.position.set(ex, .25, .47); g.add(e); }
+  for (let i = 0; i < 8; i++) {
+    const side = i < 4 ? -1 : 1, k = i % 4;
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(.26, .035, .035), tickMats.leg);
+    leg.position.set(side * .34, .12, .22 - k * .15);
+    leg.rotation.set(0, (k - 1.5) * .25 * side, -side * .5);
+    g.add(leg);
+  }
+  scene.add(g);
+  return g;
+}
+const SAFE_R = 7;
+const nearHome = e => Math.hypot(e.x - HOME.x, e.z - (HOME.z - 4)) < SAFE_R;
+function hitTick(k) {
+  k.hp -= 1; k.hurtT = .25;
+  const dx = k.x - player.x, dz = k.z - player.z, d = Math.hypot(dx, dz) || 1;
+  k.vx = dx / d * 6; k.vz = dz / d * 6; k.vy = 4;
+  Sfx.pop();
+  if (k.hp <= 0) killTick(k);
+}
+function killTick(k) {
+  burst(Math.floor(k.x), Math.floor(k.y), Math.floor(k.z), tickMats.body, 12);
+  scene.remove(k.mesh);
+  ticks.splice(ticks.indexOf(k), 1);
+  if (Math.random() < .6) spawnItem('coin', k.x, k.y + .3, k.z, { pickDelay: .3 });
+}
+function biteFact() {
+  if (tickFactShown) return;
+  tickFactShown = true;
+  toast('Carrapato! Na vida real eles transmitem doenças como a erliquiose (a "doença do carrapato"). Mantenha o antiparasitário do seu cão em dia!', 'warn', 8000);
+}
+function updateTicks(dt) {
+  const night = dayK < .25;
+  if (night && !nightWarned) { nightWarned = true; toast('Anoiteceu! Carrapatos gigantes saem do mato. A casinha é zona segura, e clique esquerdo espanta eles.', 'warn', 6500); }
+  if (!night) nightWarned = false;
+  if (night && ticks.length < 5 && Math.random() < dt / 5) {
+    const p = surfaceSpot(player.x, player.z, 12, 24);
+    if (p && !nearHome(p)) ticks.push({ ...p, vx: 0, vy: 0, vz: 0, hw: .25, h: .4, hp: 3, cd: 0, hopT: rand(.4, 1), hurtT: 0, mesh: makeTickMesh(), yaw: 0 });
+  }
+  for (const k of [...ticks]) {
+    if (dayK > .55) { k.y -= dt * .8; k.mesh.position.y = k.y; if ((k.burrow = (k.burrow || 0) + dt) > 1.2) { scene.remove(k.mesh); ticks.splice(ticks.indexOf(k), 1); } continue; }
+    const targets = [player, dog].filter(t => !nearHome(t) && !(t === player && player.downT > 0));
+    const tgt = targets.sort((a, b) => dist2(a, k) - dist2(b, k))[0];
+    k.cd -= dt; k.hurtT -= dt;
+    if (k.onGround) { k.vx *= .8; k.vz *= .8; }
+    if (tgt && dist2(tgt, k) < 16 && k.onGround && (k.hopT -= dt) <= 0) {
+      const dx = tgt.x - k.x, dz = tgt.z - k.z, d = Math.hypot(dx, dz) || 1;
+      k.vx = dx / d * 3.6; k.vz = dz / d * 3.6; k.vy = 5.5; k.hopT = rand(.5, 1.1);
+      k.yaw = Math.atan2(dx, dz);
+    }
+    if (nearHome(k)) { k.vx = (k.x - HOME.x) * .8; k.vz = (k.z - HOME.z + 4) * .8; }
+    k.vy -= 22 * dt;
+    World.moveBody(k, dt);
+    if (tgt && k.cd <= 0 && dist3(tgt, k) < .95) {
+      k.cd = 1.4;
+      if (tgt === player) { player.hp -= 6; player.hurtT = .4; floatText(player, '−6 coceira!', '#d64545'); Sfx.bad(); }
+      else { dog.health = clamp(dog.health - 5, 1, 100); dog.happy = clamp(dog.happy - 4, 0, 100); dogSay('Ai! Um carrapato! *coça coça*', false); }
+      biteFact();
+    }
+    k.mesh.position.set(k.x, k.y, k.z);
+    k.mesh.rotation.y = k.yaw;
+    k.mesh.children[0].material = k.hurtT > 0 ? tickMats.back : tickMats.body;
+    if (k.y < -5) { scene.remove(k.mesh); ticks.splice(ticks.indexOf(k), 1); }
+  }
+}
+
 // ---------- dia e noite ----------
 const DAY_LEN = 480;
 const C = (h) => new THREE.Color(h);
@@ -1053,7 +1318,8 @@ function updateSky(dt) {
   save.dayT = (save.dayT + dt / DAY_LEN) % 1;
   const a = save.dayT * Math.PI * 2, sy = Math.sin(a);
   const sunDir = new THREE.Vector3(Math.cos(a) * .8, sy, .45).normalize();
-  const dayK = clamp(sy * 3 + .3, 0, 1), duskK = clamp(1 - Math.abs(sy) * 4, 0, 1);
+  dayK = clamp(sy * 3 + .3, 0, 1);
+  const duskK = clamp(1 - Math.abs(sy) * 4, 0, 1);
   const mix = (k) => {
     const base = PAL.night[k].clone().lerp(PAL.day[k], dayK);
     return base.lerp(PAL.dusk[k], duskK * .7);
@@ -1113,7 +1379,7 @@ function renderHotbar(showLabel) {
   }
   if (showLabel) {
     const it = inv[sel];
-    $('#heldLabel').textContent = it ? itemName(it.key) + (isEdible(it.key) ? ' · R come · clique dir. joga' : isBlockKey(it.key) ? ' · clique dir. coloca' : it.key === 'jarra' ? ' · R bebe · E no potinho' : ' · clique dir. joga') : '';
+    $('#heldLabel').textContent = it ? itemName(it.key) + (isEdible(it.key) ? ' · segure clique dir. para comer · Q joga' : isBlockKey(it.key) ? ' · clique dir. coloca' : it.key === 'jarra' ? ' · segure clique dir. para beber · mire no potinho' : ' · clique dir. joga') : '';
     $('#heldLabel').classList.add('show');
     labelT = 2.5;
   }
@@ -1159,10 +1425,10 @@ function updateHud(dt) {
   }
   for (let i = floaters.length - 1; i >= 0; i--) if (floaters[i].life <= 0) floaters.splice(i, 1);
 
-  const it = !uiBlocking() && player.downT <= 0 ? interactions() : null;
+  const it = !uiBlocking() && player.downT <= 0 ? (hitTarget ? { label: 'Espantar o carrapato', btn: touchMode ? 'Segure' : 'Clique esq.' } : useTarget) : null;
   const pr = $('#prompt');
   pr.style.display = it ? '' : 'none';
-  if (it) pr.innerHTML = `<kbd>E</kbd> ${escapeHtml(it.label)}`;
+  if (it) pr.innerHTML = `<kbd>${it.btn || (touchMode ? 'Toque' : 'Clique dir.')}</kbd> ${escapeHtml(it.label)}`;
 
   if ((labelT -= dt) <= 0) $('#heldLabel').classList.remove('show');
   const now = performance.now();
@@ -1257,7 +1523,7 @@ function openWardrobe() {
   }
   renderWardrobe();
   const loop = () => {
-    if (pv.model) { pv.model.root.rotation.y += .012; pv.model.animate(1 / 60, { moving: false, wag: 12, pant: true }); }
+    if (pv.model) { pv.model.root.rotation.y += .012; pv.model.animate(1 / 60, { moving: false, wag: 12, pant: true, pose: 'stand' }); }
     pv.renderer.render(pv.scene, pv.cam);
     previewRAF = requestAnimationFrame(loop);
   };
@@ -1265,6 +1531,7 @@ function openWardrobe() {
   previewRAF = requestAnimationFrame(loop);
 }
 function swatch(kind, key) {
+  if (kind === 'human') { const h = HUMANS[key]; return `linear-gradient(${h.skin} 0 34%, ${h.shirt} 34% 70%, ${h.pants} 70%)`; }
   if (kind === 'coat') { const c = COATS[key]; return `linear-gradient(135deg, ${c.base} 55%, ${c.ear} 55%)`; }
   if (kind === 'collar') { const c = COLLARS[key]; return c.rainbow ? 'linear-gradient(90deg,#e84a4a,#f2d83a,#4cc06a,#3a8ef2,#9a5bd6)' : c.color; }
   return null;
@@ -1272,8 +1539,12 @@ function swatch(kind, key) {
 function renderWardrobe() {
   const skin = wardrobeWho === 'player' ? save.playerSkin : save.dogSkin;
   if (pv.model) pv.scene.remove(pv.model.root);
-  pv.model = makeDog(skin, 1.3);
+  const human = wardrobeWho === 'player' && isHuman();
+  pv.model = human ? makeHuman(skin, .78) : makeDog(skin, 1.3);
   pv.scene.add(pv.model.root);
+  pv.cam.position.set(1.8, human ? 1.5 : 1.3, 2.4); pv.cam.lookAt(0, human ? .7 : .45, 0);
+  const show = { body: wardrobeWho === 'player', human: human, coat: !human, collar: !human, acc: true };
+  document.querySelectorAll('[data-sec]').forEach(el => { el.hidden = !show[el.dataset.sec]; });
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.who === wardrobeWho));
   $('#nameLabel').textContent = wardrobeWho === 'player' ? 'Seu nome' : 'Nome do cachorro';
   $('#nameInput').value = wardrobeWho === 'player' ? save.playerName : save.dogName;
@@ -1300,7 +1571,8 @@ function renderWardrobe() {
           toast(`Você comprou ${def.name}!`, 'good', 2500);
         }
         skin[kind] = key;
-        (wardrobeWho === 'player' ? pModel : dModel).setSkin(skin);
+        if (wardrobeWho === 'player' && (kind === 'body' || kind === 'human')) buildPlayerModel();
+        else (wardrobeWho === 'player' ? pModel : dModel).setSkin(skin);
         if (wardrobeWho === 'dog' && dog.held) dModel.setHeld(itemSprite(dog.held, .45));
         persist(); refreshNames(); renderWardrobe();
       });
@@ -1330,9 +1602,11 @@ function update(dt) {
   time += dt;
   updatePlayer(dt);
   updateDog(dt);
+  updateTicks(dt);
   updateItems(dt);
   updateCamera();
   updateAim();
+  eatTick(dt);
   mineTick(dt);
   World.flush(scene);
   for (const b of [foodBowl, waterBowl]) updateBowl(b);
@@ -1360,7 +1634,7 @@ function syncModels(dt) {
   pModel.root.position.set(player.x, player.y, player.z);
   pModel.root.rotation.y = player.yaw;
   const pSpeed = Math.hypot(player.vx, player.vz);
-  pModel.animate(dt, { moving: pSpeed > .5, speed: pSpeed, pose: player.downT > 0 ? 'sick' : 'stand', wag: 9, pant: pSpeed > 5 });
+  pModel.animate(dt, { moving: pSpeed > .5, speed: pSpeed, pose: player.downT > 0 ? 'sick' : sneaking && !isHuman() ? 'lie' : 'stand', wag: 9, pant: pSpeed > 5, swing: swingT > 0 || (mouseDown && !!aim), eat: !!eating, sneak: sneaking });
   dModel.root.position.set(dog.x, dog.y, dog.z);
   dModel.root.rotation.y = lerpAngle(dModel.root.rotation.y, dog.yaw, Math.min(1, dt * 10));
   dModel.animate(dt, {
@@ -1371,8 +1645,12 @@ function syncModels(dt) {
 
 refreshNames();
 renderHotbar();
-logMsg('sys', `${dogName()} está te esperando! Aperte Enter para conversar: "oi", "senta", "busca" ou "posso te dar chocolate?"`);
-addEventListener('beforeunload', persist);
+logMsg('sys', `${dogName()} está te esperando! Aperte T ou Enter para conversar: "oi", "senta", "busca" ou "posso te dar chocolate?"`);
+addEventListener('beforeunload', e => {
+  persist();
+  // evita fechar a aba sem querer (Ctrl+W ao correr)
+  if (locked) { e.preventDefault(); e.returnValue = ''; }
+});
 
 let last = performance.now();
 function frame(now) {
@@ -1394,4 +1672,4 @@ function step(n = 60, dt = 1 / 60) {
   updateHud(dt);
   renderer.render(scene, camera);
 }
-window.__cachocraft = { step, mine: v => { mouseDown = v; }, player, dog, save, sendChat, inv, World, get items() { return items; }, addItem, setSel: i => { sel = i; renderHotbar(true); }, useRight, interact, camera, get aim() { return aim; }, setCam: (y, p) => { camYaw = y; camPitch = p; } };
+window.__cachocraft = { step, mine: v => { mouseDown = v; }, player, dog, save, sendChat, inv, World, get items() { return items; }, addItem, setSel: i => { sel = i; renderHotbar(true); }, useRight, camera, ticks, setRight: v => { rightDown = v; }, cycleCamera, get camMode() { return camMode; }, get useTarget() { return useTarget; }, setDay: v => { save.dayT = v; }, get aim() { return aim; }, setCam: (y, p) => { camYaw = y; camPitch = p; } };

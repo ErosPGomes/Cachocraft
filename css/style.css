@@ -247,3 +247,21 @@ body.down #game { filter: brightness(.35) blur(2px); transition: filter .6s; }
   .slot { width: 40px; height: 40px; }
   .slot canvas { width: 30px; height: 30px; }
 }
+
+/* sem HUD (F1) */
+body.nohud #hud > :not(#toasts) { display: none; }
+
+/* toque */
+#touch { display: none; }
+.touch-only { display: none; }
+body.touch .touch-only { display: block; }
+body.touch .desk-only { display: none; }
+body.touch #touch { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+#tStick { display: none; position: absolute; left: 0; top: 0; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.4); }
+#tKnob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.55); }
+.tbtns { position: absolute; right: 12px; bottom: 90px; display: grid; grid-template-columns: repeat(2, 52px); gap: 8px; pointer-events: auto; }
+.tbtns button { width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: rgba(30,22,16,.45); font-size: 22px; touch-action: none; }
+.tbtns button.big { grid-column: span 2; width: 100%; border-radius: 26px; }
+.tbtns button.on { background: rgba(224,123,46,.75); }
+body.touch #chatHint { display: none; }
+body.touch #crosshair { opacity: .7; }

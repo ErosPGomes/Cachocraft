@@ -30,7 +30,7 @@
     <div id="topRight">
       <div class="pill" id="clock" title="Hora do dia">☀️ dia</div>
       <div class="pill coins" title="Ossinhos (moeda do jogo)">🦴 <b id="coins">0</b></div>
-      <button class="btn" id="btnInv">Inventário <kbd>I</kbd></button>
+      <button class="btn" id="btnInv">Inventário <kbd>E</kbd></button>
       <button class="btn" id="btnWardrobe">Guarda-roupa <kbd>C</kbd></button>
       <button class="btn ghost" id="btnHelp" title="Como jogar">?</button>
       <button class="btn ghost" id="btnMute">🔊</button>
@@ -76,21 +76,29 @@
       <div class="help-grid">
         <div>
           <h3>Controles</h3>
-          <ul class="keys">
-            <li><kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular</li>
-            <li><kbd>Mouse</kbd> olhar · <kbd>Clique esq.</kbd> segurar para cavar</li>
-            <li><kbd>Clique dir.</kbd> colocar bloco ou jogar item</li>
-            <li><kbd>E</kbd> usar / carinho · <kbd>R</kbd> comer · <kbd>Q</kbd> soltar</li>
-            <li><kbd>1</kbd>–<kbd>9</kbd> / rodinha · trocar item</li>
-            <li><kbd>I</kbd> inventário e criação · <kbd>C</kbd> guarda-roupa · <kbd>Enter</kbd> conversar</li>
+          <ul class="keys desk-only">
+            <li><kbd>WASD</kbd> andar · <kbd>Espaço</kbd> pular · <kbd>Shift</kbd> agachar</li>
+            <li><kbd>Ctrl</kbd> ou <kbd>W</kbd><kbd>W</kbd> correr · <kbd>F5</kbd> mudar câmera</li>
+            <li><kbd>Clique esq.</kbd> segurar para cavar / espantar</li>
+            <li><kbd>Clique dir.</kbd> colocar bloco, usar, fazer carinho, jogar graveto; segure para comer</li>
+            <li><kbd>E</kbd> inventário e criação · <kbd>Q</kbd> jogar item · <kbd>1</kbd>–<kbd>9</kbd> / rodinha</li>
+            <li><kbd>T</kbd> ou <kbd>Enter</kbd> conversar · <kbd>C</kbd> guarda-roupa · <kbd>F1</kbd> esconder a tela</li>
+          </ul>
+          <ul class="keys touch-only">
+            <li>Arraste no lado esquerdo para andar (empurre tudo para correr)</li>
+            <li>Arraste no lado direito para olhar</li>
+            <li>Toque rápido para usar/colocar · segure para cavar</li>
+            <li>Botões: pular, agachar, comer, jogar, inventário, chat e câmera</li>
           </ul>
         </div>
         <div>
           <h3>Cuidar de <span data-dogname>Paçoca</span></h3>
           <ul>
             <li>Jogue um <b>graveto</b> (clique direito): ele busca!</li>
-            <li>Pegue a jarra na <b>torneira</b> e encha o potinho azul.</li>
-            <li>Pegue <b>ração de osso e palha</b> no saco e encha o potinho vermelho.</li>
+            <li>Mire na <b>torneira</b> e clique direito para pegar água; depois no potinho azul.</li>
+            <li>Faça o mesmo com o <b>saco de ração de osso e palha</b> e o potinho vermelho.</li>
+            <li>Cave fundo para achar <b>ossos</b>. Em baixadas, o buraco enche de <b>água</b>.</li>
+            <li>À noite saem <b>carrapatos gigantes</b>. A casinha é zona segura.</li>
             <li>Chocolate, uva, cebola, biscoito, café, abacate e xilitol <b>fazem mal</b>, como na vida real.</li>
             <li>Se ele for comer algo perigoso, diga <b>"larga!"</b>.</li>
           </ul>
@@ -136,11 +144,26 @@
           <label class="rename"><span id="nameLabel">Seu nome</span><input id="nameInput" maxlength="14"></label>
         </div>
         <div class="options">
-          <h3>Pelagem</h3><div class="grid" data-kind="coat"></div>
-          <h3>Coleira</h3><div class="grid" data-kind="collar"></div>
-          <h3>Acessório</h3><div class="grid" data-kind="acc"></div>
+          <section data-sec="body"><h3>Forma</h3><div class="grid" data-kind="body"></div></section>
+          <section data-sec="human"><h3>Visual</h3><div class="grid" data-kind="human"></div></section>
+          <section data-sec="coat"><h3>Pelagem</h3><div class="grid" data-kind="coat"></div></section>
+          <section data-sec="collar"><h3>Coleira</h3><div class="grid" data-kind="collar"></div></section>
+          <section data-sec="acc"><h3>Acessório</h3><div class="grid" data-kind="acc"></div></section>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="touch">
+    <div id="tStick"><div id="tKnob"></div></div>
+    <div class="tbtns">
+      <button id="tCam">📷</button>
+      <button id="tChat">💬</button>
+      <button id="tInv">🎒</button>
+      <button id="tThrow">🦴</button>
+      <button id="tEat">🍽️</button>
+      <button id="tSneak">⬇️</button>
+      <button id="tJump" class="big">⬆️</button>
     </div>
   </div>
 

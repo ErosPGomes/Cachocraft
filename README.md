@@ -20,21 +20,35 @@ e acesse http://localhost:8123.
 
 ### Controles (versão 3D)
 
+Seguem o padrão dos jogos de bloco, para quem já está acostumado:
+
 | Tecla | Ação |
 | --- | --- |
-| `WASD` | andar (`Shift` corre) |
-| `Espaço` | pular |
+| `WASD` | andar |
+| `Espaço` | pular (na água, nadar para cima) |
+| `Shift` | agachar (não cai da beirada) |
+| `Ctrl` ou `W` duas vezes | correr |
 | Mouse | olhar (clique na tela para travar o ponteiro) |
-| Clique esquerdo (segurar) | cavar o bloco |
-| Clique direito | colocar bloco ou jogar o item da mão |
+| Clique esquerdo (segurar) | cavar o bloco / espantar carrapato |
+| Clique direito | colocar bloco, usar (torneira, saco, potinhos, veterinário), fazer carinho, dar comida ao cachorro, jogar graveto |
+| Clique direito (segurar) | comer ou beber o item da mão |
+| Botão do meio | pegar o bloco da mira na barra |
+| `E` | inventário e criação |
+| `Q` | jogar o item da mão (o cachorro busca) |
 | `1`–`9` / rodinha | trocar item da barra |
-| `E` | usar, fazer carinho, dar comida, encher potinho |
-| `R` | comer / beber |
-| `Q` | soltar |
-| `I` ou `Tab` | inventário e criação |
+| `T`, `Enter` ou `/` | conversar com o cachorro |
+| `F5` (ou `V`) | câmera: primeira pessoa, por trás, pela frente |
+| `F1` | esconder a interface |
 | `C` | guarda-roupa |
-| `Enter` | conversar com o cachorro |
-| `V` | aproximar/afastar a câmera |
+
+No celular: arraste à esquerda para andar, à direita para olhar, toque rápido para usar e segure para cavar. Há botões de pular, agachar, comer, jogar, inventário, chat e câmera.
+
+### Mundo
+
+- **Água**: em baixadas, cavar abaixo do nível do lago faz brotar água do lençol freático. Cavar ao lado de água também inunda o buraco.
+- **Ossos**: quanto mais fundo você cava, mais fósseis de osso aparecem na pedra.
+- **Noite**: saem carrapatos gigantes que pulam atrás de você e do cachorro. A casinha é zona segura, o cachorro late e caça os carrapatos, e o clique esquerdo os espanta.
+- **Skins**: no guarda-roupa, escolha jogar como **cachorro** ou como **humano** (tutora, tutor de boné, passeador, veterinária, jardineiro).
 
 Os controles da versão 2D estão na própria tela de `classico/`.
 

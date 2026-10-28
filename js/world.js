@@ -87,7 +87,8 @@ function genTerrain() {
     const h = heightAt(x, z);
     for (let y = 0; y <= h; y++) {
       let b = y === h ? B.grama : y >= h - 3 ? B.terra : B.pedra;
-      if (b === B.pedra && y < h - 4 && hash2(x * 1.3 + y * 7.1, z * 2.9 - y) < .012) b = B.fossil;
+      // quanto mais fundo, mais fósseis de osso
+      if (b === B.pedra && y < h - 3 && hash2(x * 1.3 + y * 7.1, z * 2.9 - y) < .008 + (h - y - 3) * .007) b = B.fossil;
       if (y === h && h <= SEA + 1) b = B.areia;
       if (y < h && y >= h - 2 && h <= SEA + 1) b = B.areia;
       rawSet(x, y, z, b);
@@ -188,6 +189,25 @@ export function generate(edits) {
 // ---------- edição ----------
 const dirty = new Set();
 export const edits = {};
+// Lençol freático: em baixadas (terreno original perto do nível do lago), buraco abaixo do nível enche de água.
+const lowland = (x, z) => heightAt(x, z) <= SEA + 3;
+export function seep(x, y, z) {
+  const q = [[x, y, z]], N = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]];
+  let n = 0;
+  while (q.length && n < 400) {
+    const [cx, cy, cz] = q.shift();
+    if (!inb(cx, cy, cz) || get(cx, cy, cz) !== 0) continue;
+    const nearWater = N.some(([dx, dy, dz]) => BLOCKS[get(cx + dx, cy + dy, cz + dz)].water);
+    const table = cy <= SEA && lowland(cx, cz);
+    if (!nearWater && !table) continue;
+    setBlock(cx, cy, cz, B.agua);
+    n++;
+    q.push([cx, cy - 1, cz]);
+    if (cy <= SEA) for (const [dx, , dz] of N.slice(0, 4)) q.push([cx + dx, cy, cz + dz]);
+  }
+  return n;
+}
+
 export function setBlock(x, y, z, b) {
   if (!inb(x, y, z)) return;
   const i = idx(x, y, z);
